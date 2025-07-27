@@ -5,7 +5,7 @@
 [![Apache Beam](https://img.shields.io/badge/Apache%20Beam-2.5x-yellow.svg)](https://beam.apache.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
 
-> 本项目是基于 Apache Beam 和 PyTorch DDP 构建的，从原始数据到模型训练的端到端多模态推荐系统。项目完整复现了工业界处理大规模推荐任务的标准范式，包括分布式特征工程、高效数据加载、复杂模型（MMoE）的分布式训练与微调。
+> 本项目是基于 Apache Beam 和 PyTorch DDP 构建的，从原始数据到模型训练的端到端多模态推荐系统。项目完整复现了处理大规模推荐任务的标准范式，包括分布式特征工程、高效数据加载、复杂模型（MMoE）的分布式训练与微调。
 
 ---
 
