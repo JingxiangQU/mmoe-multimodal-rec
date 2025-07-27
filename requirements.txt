@@ -1,0 +1,16 @@
+# requirements.txt
+
+# ⚠️ 默认 PyTorch 环境：
+# 已在 docker 镜像 runpod/pytorch:2.4.0-py3.11-cuda12.4.1-devel-ubuntu22.04 中预装
+# 不需要在此文件中重复指定 torch
+
+transformers>=4.35.0           # Hugging Face 模型库
+peft>=0.5.0                    # Parameter-Efficient Fine-Tuning (LoRA等)
+webdataset==0.2.86            # 高效分布式样本加载工具
+tokenizers>=0.15.0            # 高性能分词器
+scikit-learn>=1.2.0           # AUC计算、数据处理等
+matplotlib>=3.7.0             # 可视化
+google-auth>=2.20.0           # GCP 授权支持
+google-cloud-storage>=2.12.0  # GCS 文件读写
+tqdm>=4.66.0                  # 进度条工具
+nltk                          # 句子分割、分词
