@@ -599,8 +599,7 @@ def build_text_user_expert(
     peft_model = get_peft_model(base, cfg).to(device)
 
     # 2) wrap 并 to(device)
-    expert = TextExpert(peft_model, tokenizer, max_tok=max_tok)
-    return expert.to(device)
+    return TextExpert(peft_model, tokenizer, max_tok=max_tok).to(device)
 
 
 def build_text_item_expert(
@@ -616,10 +615,10 @@ def build_text_item_expert(
     )
     base = AutoModel.from_pretrained(model_name)
     base.resize_token_embeddings(len(tokenizer))  
-    peft_model = get_peft_model(base, cfg).to(device)#遍历这个 Encoder，在它的关键 Linear层加两个低秩矩阵A，B，并将原有权重 requires_grad=False
+    peft_model = get_peft_model(base, cfg).to(device)
 
-    expert = TextExpert(peft_model, tokenizer, max_tok=max_tok)
-    return expert.to(device)
+    return TextExpert(peft_model, tokenizer, max_tok=max_tok).to(device)
+    
 
 def build_img_expert(model_name: str, pool_type: str, device: torch.device):
     base = ViTModel.from_pretrained(model_name)
