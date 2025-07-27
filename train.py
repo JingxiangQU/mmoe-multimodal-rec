@@ -36,7 +36,6 @@ def get_state_dict(mod):
     # 如果是 DDP，取 .module.state_dict()，否则直接 .state_dict()
     return mod.module.state_dict() if hasattr(mod, "module") else mod.state_dict()
 
-            # gather 多卡 preds/labels
 
                 
 def make_loader(file_list: list, batch_size: int, num_workers: int): # 参数名file_list
@@ -69,7 +68,7 @@ def make_loader(file_list: list, batch_size: int, num_workers: int): # 参数名
 
     # ---------------- DataLoader ----------------
 def all_gather_tensor(t: torch.Tensor):
-    """跨进程 gather 张量并 concat（支持单卡）"""
+    """跨进程 gather 张量并 concat """
     if dist.is_initialized() and dist.get_world_size() > 1:
         out = [torch.zeros_like(t) for _ in range(dist.get_world_size())]
         dist.all_gather(out, t)
@@ -133,7 +132,7 @@ def main():
     # wrap DDP
     user_expert = DDP(user_expert, device_ids=[rank], find_unused_parameters=True)
     item_expert = DDP(item_expert, device_ids=[rank], find_unused_parameters=True)
-    #img_expert  = DDP(img_expert,    device_ids=[rank]) #冻结的专家不加入ddp
+    #img_expert  = DDP(img_expert,    device_ids=[rank]) #冻结的专家不加入ddp，也可以加入并冻结参数但find_unused_parameters=True
     cross_ui    = DDP(cross_ui,      device_ids=[rank])
     concat_ui   = DDP(concat_ui,     device_ids=[rank])
     concat_ti   = DDP(concat_ti,     device_ids=[rank])
@@ -300,10 +299,10 @@ def main():
                 #if has_nan(preds_g_np) or has_nan(y_good_np) or has_nan(preds_b_np) or has_nan(y_best_np):
                  #   print(f"[NaN/Inf预测] step={step}，跳过AUC统计")
                   #  continue
-                #all_preds_g_local.append(preds_g_np) # ★ append NumPy 数组
-                #all_labels_g_local.append(y_good_np) # ★ append NumPy 数组
-                #all_preds_b_local.append(preds_b_np) # ★ append NumPy 数组
-                #all_labels_b_local.append(y_best_np) # ★ append NumPy 数组
+                #all_preds_g_local.append(preds_g_np) #  append NumPy 数组
+                #all_labels_g_local.append(y_good_np) # 
+                #all_preds_b_local.append(preds_b_np) # 
+                #all_labels_b_local.append(y_best_np) # 
             
             if rank == 0 and global_step % ACCUM == 0:
                
@@ -375,14 +374,14 @@ def main():
         print(f"DEBUG: Matplotlib backend in use: {plt.get_backend()}", flush=True)
         output_dir_path = args.output_dir
         
-        # 绘图：每个更新步的 Loss
+        # 绘图：每个更新 step 的 Loss
         plt.figure()
         plt.plot(global_steps_for_plot, global_step_losses, marker='.', linestyle='-')
         plt.title("Training Loss (Per Update Step)")
         plt.xlabel("Global Step")
         plt.ylabel("Loss")
         
-        # 保存图片，可以起一个不同的名字，例如 "global_step_loss_curve.png"
+        # 保存图片
         loss_curve_filename = "global_step_loss_curve.png"
         loss_curve_full_path = os.path.join(output_dir_path, loss_curve_filename)
         
@@ -397,7 +396,7 @@ def main():
         # 绘制每个 eval_interval epoch 的平均 loss
         if epoch_losses: # 只有当 epoch_losses 不为空时才绘制
             plt.figure(); 
-            actual_epochs = [e for e in range(args.epochs) if (e + 1) % args.eval_interval == 0]
+            actual_epochs = [e for e in range(args.epochs) ]
             # 确保实际评估的epoch数量与epoch_losses列表长度匹配
             if len(actual_epochs) != len(epoch_losses):
                  print(f"Warning: Number of recorded epochs ({len(epoch_losses)}) does not match eval_interval derived epochs ({len(actual_epochs)}). Adjusting plotting X-axis.")
