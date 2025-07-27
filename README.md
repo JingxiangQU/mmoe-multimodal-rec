@@ -229,7 +229,7 @@ torchrun --nproc_per_node=2 train.py \
 <img width="640" height="480" alt="global_step_loss_curve" src="https://github.com/user-attachments/assets/6372e575-8577-4d20-8280-9268df3bdb8b" />
 <img width="640" height="480" alt="epoch_interval_loss_curve" src="https://github.com/user-attachments/assets/51c1126e-e913-439f-aec8-05979c3c9cc9" />
 
-- **注**：共4个epoch，图2中每个epoch重复计数了一次
+- **注**：共4个epoch，图2中每个epoch重复计数了一次，已定位问题并在`train.py`中修改。
   
 ---
 
