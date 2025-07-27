@@ -32,7 +32,7 @@ graph TD
         D -- Generates --> E[User/Item Features];
         D -- Generates --> F(Image URLs List);
         F --> G[Beam Pipeline 2: newpatch.py];
-        G --> Distributed Image Fetching & Patching --> H(Image Patches Data);
+        G -- Distributed Image Fetching & Patching --> H(Image Patches Data);
         E & H --> I[Beam Pipeline 3: data4model.py];
         I -- Joins Features & Image Patches --> J(Processed Data in WebDataset format on GCS);
     end
