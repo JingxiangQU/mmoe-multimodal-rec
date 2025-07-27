@@ -93,7 +93,7 @@ graph TD
 
 ```text
 .
-├── data4moe_beam.py     # 主特征工程脚本 (Beam)，生成用户/物品特征和图片URL列表
+├── data4moe_beam.py     # 主特征工程脚本 (Beam)，生成用户/物品特征和图片URL列表， 按照日期划分train/valid/test，严防特征穿越
 ├── newpatch.py          # 分布式图片处理脚本 (Beam)，将URL转换为图像patch数据
 ├── data4model.py        # 合并所有特征并生成WebDataset的脚本 (Beam)
 ├── meta2gcs.py          # 从Hugging Face下载元数据的辅助脚本
