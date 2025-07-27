@@ -25,6 +25,7 @@
 
 ```mermaid
 graph TD
+    %% High-Level Pipeline
     subgraph "Phase 1: Offline Data Engineering (Apache Beam on CPU Cluster)"
         A[Raw Data on Hugging Face] --> B(Data Ingestion Scripts);
         B --> C{GCS Storage: Raw JSONL};
@@ -46,10 +47,73 @@ graph TD
         O --> P(Saved Checkpoints & Performance Plots);
     end
 
+    %% Detailed MMoE Model Structure
+    subgraph "Input Modalities"
+        U[User Text] --> P1(preprocess_batch);
+        I_text[Item Text] --> P2(preprocess_batch);
+        IMG[Item Image Patches] --> IIME(ItemImageExpert);
+    end
+
+    subgraph "Text Experts (LoRA Tuned)"
+        direction LR
+        P1 --> UE(TextExpert: User);
+        P2 --> IE(TextExpert: Item);
+    end
+
+    subgraph "Expert Feature Extraction"
+        UE -- u_doc --> MM1[Expert Vecs Collection];
+        IE -- i_doc --> MM1;
+        IIME -- img_vec --> MM1;
+
+        UE -- u_sent, u_mask --> RC(RobustTextCrossExpert: Cross-UI Attention);
+        IE -- i_sent, i_mask --> RC;
+        RC -- ui_vec --> MM1;
+
+        UE -- u_doc --> CUI(EnhancedCrossFuse: User-Image Concat);
+        IIME -- img_vec --> CUI;
+        CUI -- xui --> MM1;
+
+        IE -- i_doc --> CTI(EnhancedCrossFuse: Item-Image Concat);
+        IIME -- img_vec --> CTI;
+        CTI -- xti --> MM1;
+    end
+
+    subgraph "MMoE Head (TwoTaskMMoE)"
+        MM1 --> QH("Query Generation: mean(expert_vecs)");
+
+        QH -- Query --> G1(DenseGate: Task Good);
+        QH -- Query --> G2(DenseGate: Task Best);
+
+        G1 -- Weights --> F1(Weighted Sum of Expert Vecs);
+        G2 -- Weights --> F2(Weighted Sum of Expert Vecs);
+
+        F1 --> T1(Task Tower: Good);
+        F2 --> T2(Task Tower: Best);
+    end
+
+    T1 -- Logit --> L_GOOD(Label Good Prediction);
+    T2 -- Logit --> L_BEST(Label Best Prediction);
+
+    %% Arrow connecting the detailed view to the high-level block
+    T1 --> N;
+    T2 --> N;
+
+    %% Styling
     style J fill:#f9f,stroke:#333,stroke-width:2px
     style K fill:#ccf,stroke:#333,stroke-width:2px
+    style UE fill:#e0f7fa,stroke:#0097a7,stroke-width:2px
+    style IE fill:#e0f7fa,stroke:#0097a7,stroke-width:2px
+    style IIME fill:#fffde7,stroke:#ffc107,stroke-width:2px
+    style RC fill:#e3f2fd,stroke:#2196f3,stroke-width:2px
+    style CUI fill:#e8f5e9,stroke:#4caf50,stroke-width:2px
+    style CTI fill:#e8f5e9,stroke:#4caf50,stroke-width:2px
+    style MM1 fill:#fce4ec,stroke:#d81b60,stroke-width:2px
+    style QH fill:#f3e5f5,stroke:#9c27b0,stroke-width:2px
+    style G1 fill:#ffebee,stroke:#f44336,stroke-width:2px
+    style G2 fill:#ffebee,stroke:#f44336,stroke-width:2px
+    style T1 fill:#e1f5fe,stroke:#03a9f4,stroke-width:2px
+    style T2 fill:#e1f5fe,stroke:#03a9f4,stroke-width:2px
 ```
-
 ---
 
 ## 特征工程效果展示
