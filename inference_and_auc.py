@@ -126,8 +126,7 @@ def main():
     all_preds_g, all_labels_g = [], []
     all_preds_b, all_labels_b = [], []
 
-    # *** THIS IS THE KEY CHANGE ***
-    # Iterate directly over the loader. tqdm will show progress without a total.
+ 
     for batch in tqdm(loader, desc="Evaluating"):
         with torch.no_grad():
             texts_u = [b['user_text'] for b in batch]
