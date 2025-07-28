@@ -8,6 +8,7 @@
 > 本项目是基于 Apache Beam 和 PyTorch DDP 构建的，从原始数据到模型训练的端到端多模态推荐系统。项目包括分布式特征工程、高效数据加载、复杂模型（MMoE）的分布式训练与微调。
 > 结果展示：<img width="1120" height="575" alt="cc8ddd5d25b25f8829b27353edf78c8" src="https://github.com/user-attachments/assets/b5b95593-963f-4dab-b489-0d7eb43de8db" />
 <img width="800" height="600" alt="image" src="https://github.com/user-attachments/assets/27a53ba8-bb8f-4ab0-bc7e-ded8149bf20f" /><img width="800" height="600" alt="image" src="https://github.com/user-attachments/assets/5ccd6ace-a197-403e-b007-ab170bf6e62a" />
+
 -**结果分析**
 > 在22281条valid数据上验证，取得了极好的成绩：AUC for 'good' task: 0.938362，AUC for 'best' task: 0.925723
 > 在`data4moe_beam.py`的模块`SplitByDate`中，按照数据的时间划分了训练集(data<=2023.6.30)，验证集(2023.6.30<valid<2023.9.30)，这里从验证集取了22281条数据，严格防止了特征穿越和数据泄露。
