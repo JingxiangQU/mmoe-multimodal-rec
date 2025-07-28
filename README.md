@@ -6,6 +6,14 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
 
 > 本项目是基于 Apache Beam 和 PyTorch DDP 构建的，从原始数据到模型训练的端到端多模态推荐系统。项目包括分布式特征工程、高效数据加载、复杂模型（MMoE）的分布式训练与微调。
+> 结果展示：<img width="1120" height="575" alt="cc8ddd5d25b25f8829b27353edf78c8" src="https://github.com/user-attachments/assets/b5b95593-963f-4dab-b489-0d7eb43de8db" />
+<img width="800" height="600" alt="image" src="https://github.com/user-attachments/assets/27a53ba8-bb8f-4ab0-bc7e-ded8149bf20f" /><img width="800" height="600" alt="image" src="https://github.com/user-attachments/assets/5ccd6ace-a197-403e-b007-ab170bf6e62a" />
+-**结果分析**
+> 在22281条valid数据上验证，取得了极好的成绩：AUC for 'good' task: 0.938362，AUC for 'best' task: 0.925723
+> 在`data4moe_beam.py`的模块`SplitByDate`中，按照数据的时间划分了训练集(data<=2023.6.30)，验证集(2023.6.30<valid<2023.9.30)，这里从验证集取了22281条数据，严格防止了特征穿越和数据泄露。
+
+
+
 
 ---
 
@@ -251,7 +259,7 @@ torchrun --nproc_per_node=2 train.py \
 
 -   **特征拼接方式相对简单**: `data4model.py`中的`build_user_text`和`build_item_text`函数将多源特征直接拼接成一个长字符串。没有考虑特征间的结构化信息，增加了模型从纯文本中分离和理解不同语义信息的负担。
 
--   **训练中缺失AUC评估**: `train.py`脚本中，由于样本量巨大，在每个step后计算AUC耗时过长，因此当前的训练脚本中并未包含在线的AUC计算。 这导致训练过程中无法实时监控模型的泛化能力。下一步计划是在独立的验证集上进行完整的离线AUC评测（优先度最高）。
+-   **训练中缺失AUC评估**: `train.py`脚本中，由于样本量巨大，在每个step后计算AUC耗时过长，因此当前的训练脚本中并未包含在线的AUC计算。 这导致训练过程中无法实时监控模型的泛化能力。下一步计划是在独立的验证集上进行完整的离线AUC评测（优先度最高）。UPDATE：-**已解决**
 
 ### 未来工作方向
 
