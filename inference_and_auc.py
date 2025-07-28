@@ -1,14 +1,12 @@
 import os
 import argparse
-import torch
 import glob
+import torch
 import webdataset as wds
 from torch.cuda.amp import autocast
 from transformers import AutoTokenizer
 import numpy as np
 from sklearn.metrics import roc_auc_score, roc_curve
-import matplotlib
-matplotlib.use('Agg') 
 import matplotlib.pyplot as plt
 from model import (
     preprocess_batch,
@@ -60,12 +58,10 @@ def plot_roc_curve(y_true, y_pred, auc_score, task_name, output_dir):
     plt.legend(loc="lower right")
     plt.grid(True)
     
-    # 保存图像
     save_path = os.path.join(output_dir, f"roc_curve_{task_name.lower().replace(' ', '_')}.png")
     plt.savefig(save_path)
     print(f"ROC curve plot for '{task_name}' saved to: {save_path}")
     plt.close()
-
 
 def main():
     # 1. args
@@ -78,17 +74,13 @@ def main():
     parser.add_argument("--batch_size", type=int, default=512, help="Batch size for inference.")
     parser.add_argument("--num_workers", type=int, default=4, help="Number of worker processes for data loading.")
     parser.add_argument("--lora_r", type=int, default=8, help="LoRA rank.")
-    parser.add_argument("--max_eval_steps", type=int, default=None, help="Optional: maximum number of steps to evaluate. Defaults to evaluating the whole dataset.")
     args = parser.parse_args()
 
-    # 创建输出目录
     os.makedirs(args.output_dir, exist_ok=True)
 
-    # 2. Setup Device
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
 
-    # 3. Tokenizer and Data Loader
     tokenizer = AutoTokenizer.from_pretrained(args.model_name)
     tokenizer.add_tokens(["<SENT>"])
     file_list = sorted(glob.glob(args.data_pattern))
@@ -101,7 +93,6 @@ def main():
         num_workers=args.num_workers,
     )
 
-    # 4. Build Models
     user_expert = build_text_user_expert(args.model_name, args.lora_r, 384, tokenizer, device)
     item_expert = build_text_item_expert(args.model_name, args.lora_r, 384, tokenizer, device)
     img_expert = build_img_expert(args.img_model, pool_type="mean", device=device)
@@ -110,9 +101,11 @@ def main():
     concat_ti = build_concat_ti_expert(device=device)
     head = TwoTaskMMoE().to(device)
 
-    # 5. Load Checkpoint
     print(f"Loading checkpoint from: {args.checkpoint_path}")
-    ckpt = torch.load(args.checkpoint_path, map_location=device)
+    # Set weights_only=True for safer model loading
+    ckpt = torch.load(args.checkpoint_path, map_location=device, weights_only=True)
+    print("Checkpoint loaded successfully.")
+
     user_expert.load_state_dict(ckpt['user'])
     item_expert.load_state_dict(ckpt['item'])
     img_expert.load_state_dict(ckpt['img'])
@@ -120,9 +113,8 @@ def main():
     concat_ui.load_state_dict(ckpt['concat_ui'])
     concat_ti.load_state_dict(ckpt['concat_ti'])
     head.load_state_dict(ckpt['head'])
-    print("Checkpoint loaded successfully.")
+    print("Model weights loaded into structures.")
 
-    # Set all models to evaluation mode
     user_expert.eval()
     item_expert.eval()
     img_expert.eval()
@@ -131,21 +123,12 @@ def main():
     concat_ti.eval()
     head.eval()
 
-    # 6. Inference Loop
     all_preds_g, all_labels_g = [], []
     all_preds_b, all_labels_b = [], []
 
-    data_iter = iter(loader)
-    eval_steps = len(loader) if args.max_eval_steps is None else args.max_eval_steps
-    progress_bar = tqdm(range(eval_steps), desc="Evaluating")
-
-    for step in progress_bar:
-        try:
-            batch = next(data_iter)
-        except StopIteration:
-            print("Finished processing the dataset.")
-            break
-
+    # *** THIS IS THE KEY CHANGE ***
+    # Iterate directly over the loader. tqdm will show progress without a total.
+    for batch in tqdm(loader, desc="Evaluating"):
         with torch.no_grad():
             texts_u = [b['user_text'] for b in batch]
             texts_i = [b['item_text'] for b in batch]
@@ -173,8 +156,7 @@ def main():
             all_preds_b.append(preds_b)
             all_labels_b.append(y_best.cpu().numpy())
 
-    # 7. Calculate AUC and Plot ROC Curve
-    if not all_labels_g or not all_labels_b:
+    if not all_labels_g:
         print("No samples were processed. Cannot calculate AUC or plot ROC.")
         return
 
