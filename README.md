@@ -174,7 +174,7 @@ graph TD
 ├── review2gcs.py        # 从Hugging Face下载评论数据的辅助脚本
 ├── model.py             # 定义所有PyTorch模型架构 (MMoE, Experts)
 ├── train.py             # 核心模型训练脚本 (PyTorch DDP)
-├── inference_and_auc.py #推理脚本，并计算auc
+├── inference_and_auc.py # 推理脚本，并计算auc
 ├── requirements.txt     # 项目依赖
 └── README.md            # 本文档
 ```
