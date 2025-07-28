@@ -173,6 +173,7 @@ graph TD
 ├── review2gcs.py        # 从Hugging Face下载评论数据的辅助脚本
 ├── model.py             # 定义所有PyTorch模型架构 (MMoE, Experts)
 ├── train.py             # 核心模型训练脚本 (PyTorch DDP)
+├── inference_and_auc.py #推理脚本，并计算auc
 ├── requirements.txt     # 项目依赖
 └── README.md            # 本文档
 ```
@@ -222,6 +223,22 @@ torchrun --nproc_per_node=2 train.py \
   --lora_r 8 \
   --lr 1e-5 \
   --output_dir /workspace/outputs
+```
+
+---
+
+### 推理
+```shell
+
+python inference_and_auc.py \
+  --data_pattern 'valid/data-*-*.tar.gz' \
+  --checkpoint_path './outputs/ckpt_epoch3.pt' \
+  --output_dir './outputs' \
+  --model_name BAAI/bge-base-en-v1.5 \
+  --img_model google/vit-base-patch16-224-in21k \
+  --batch_size 256 \
+  --num_workers 8 \
+  --lora_r 8
 ```
 
 ---
