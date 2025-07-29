@@ -4,7 +4,9 @@
 [![PyTorch 2.x](https://img.shields.io/badge/PyTorch-2.x-orange.svg)](https://pytorch.org/)
 [![Apache Beam](https://img.shields.io/badge/Apache%20Beam-2.5x-yellow.svg)](https://beam.apache.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
-
+[![GitHub stars](https://img.shields.io/github/stars/JingxiangQU/mmoe-multimodal-rec?style=social)](https://github.com/JingxiangQU/mmoe-multimodal-rec)
+[![Hugging Face Dataset](https://img.shields.io/badge/🤗%20Dataset-jingxiang11111%2Famazon_reviews_for_rec-blue)](https://huggingface.co/datasets/jingxiang11111/amazon_reviews_for_rec)
+[![Hugging Face Model](https://img.shields.io/badge/🤗%20Model-jingxiang11111%2Fmmoe--multimodal--rec-blue)](https://huggingface.co/jingxiang11111/mmoe-multimodal-rec)
 > 本项目是基于 Apache Beam 和 PyTorch DDP 构建的，从原始数据到模型训练的端到端多模态推荐系统。项目包括分布式特征工程、高效数据加载、复杂模型（MMoE）的分布式训练与微调。
 > 结果展示：<img width="1120" height="575" alt="cc8ddd5d25b25f8829b27353edf78c8" src="https://github.com/user-attachments/assets/b5b95593-963f-4dab-b489-0d7eb43de8db" />
 <img width="800" height="600" alt="image" src="https://github.com/user-attachments/assets/27a53ba8-bb8f-4ab0-bc7e-ded8149bf20f" /><img width="800" height="600" alt="image" src="https://github.com/user-attachments/assets/5ccd6ace-a197-403e-b007-ab170bf6e62a" />
@@ -14,7 +16,15 @@
 
 > 在`data4moe_beam.py`的模块`SplitByDate`中，按照数据的时间划分了训练集(data<=2023.6.30)，验证集(2023.6.30<valid<2023.9.30)，这里从验证集取了22281条数据，严格防止了特征穿越和数据泄露。
 
+## 数据集和模型
 
+本项目所用的**数据集**和**训练好的模型**均已在 Hugging Face Hub 上开源，方便社区进行复现和进一步研究。
+
+* **数据集 (Amazon Reviews for Recommendation)**: 包含了用于处理后的用于训练的数据用于验证的数据。
+    [前往 Hugging Face 数据集](https://huggingface.co/datasets/jingxiang11111/amazon_reviews_for_rec)
+
+* **模型 (MMoE Multimodal Recommender)**: 训练好的 MMoE 模型文件。
+    [前往 Hugging Face 模型](https://huggingface.co/jingxiang11111/mmoe-multimodal-rec)
 
 
 ---
