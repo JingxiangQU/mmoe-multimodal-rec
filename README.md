@@ -20,9 +20,11 @@
 <img width="800" height="600" alt="image" src="https://github.com/user-attachments/assets/27a53ba8-bb8f-4ab0-bc7e-ded8149bf20f" /><img width="800" height="600" alt="image" src="https://github.com/user-attachments/assets/5ccd6ace-a197-403e-b007-ab170bf6e62a" />
 
 -**结果分析**
-> 在22281条valid数据上验证，取得了极好的成绩：AUC for 'good' task: 0.938362，AUC for 'best' task: 0.925723
-
-> 在`data4moe_beam.py`的模块`SplitByDate`中，按照数据的时间划分了训练集(data<=2023.6.30)，验证集(2023.6.30<valid<2023.9.30)，这里从验证集取了22281条数据，严格防止了特征穿越和数据泄露。
+> ### **结果分析**
+> * 在**22,281条**独立验证集样本上进行评估，取得了卓越的性能：
+>     * **AUC for 'good' task: 0.938**
+>     * **AUC for 'best' task: 0.926**
+> * 在`data4moe_beam.py`中，通过`SplitByDate`模块严格按照时间序（训练集 ≤ 2023.6.30 < 验证集 ≤ 2023.9.30）划分数据集，有效防止了数据穿越，确保了评估结果的公正性。
 
 ## 数据集和模型
 
