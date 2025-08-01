@@ -29,7 +29,7 @@
 ## 数据集和模型
 
 本项目所用的**数据集**和**训练好的模型**均已在 Hugging Face Hub 上开源，方便社区进行复现和进一步研究。
-* **备注**： 由于文件数量过多，从runpod平台上传文件到hugging face时被rate limit导致大量文件上传失败，会尽快解决。
+* **备注**： 由于文件数量过多，从runpod平台上传文件到hugging face时被rate limit导致大量文件上传失败，会尽快解决。**UPDATE**：已全部上传。
 
 * **数据集 (Amazon Reviews for Recommendation)**: 包含了用于处理后的用于训练的数据用于验证的数据。
     [前往 Hugging Face 数据集](https://huggingface.co/datasets/jingxiang11111/amazon_reviews_for_rec)
@@ -345,7 +345,7 @@ The **dataset** and **pre-trained model** used in this project are open-sourced 
 * **Model (MMoE Multimodal Recommender)**: The trained MMoE model files.
     [Go to Hugging Face Model](https://huggingface.co/jingxiang11111/mmoe-multimodal-rec)
     
-* **Note**: Due to rate limits during the upload from the cloud platform, some files may be missing. This will be fixed soon.
+* **Note**: Due to rate limits during the upload from the cloud platform, some files may be missing. This will be fixed soon.**UPDATE**: All files have been uploaded.
 
 ---
 
