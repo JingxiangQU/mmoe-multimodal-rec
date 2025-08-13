@@ -6,7 +6,7 @@
 
 <div id="zh-cn">
 
-# 端到端多模态MMoE推荐系统
+# 亚马逊商品推荐场景下的多模态多任务用户满意度预估
 
 [![Python 3.11+](https://img.shields.io/badge/Python-3.11+-blue.svg)](https://www.python.org/downloads/)
 [![PyTorch 2.x](https://img.shields.io/badge/PyTorch-2.x-orange.svg)](https://pytorch.org/)
@@ -15,7 +15,7 @@
 [![GitHub stars](https://img.shields.io/github/stars/JingxiangQU/mmoe-multimodal-rec?style=social)](https://github.com/JingxiangQU/mmoe-multimodal-rec)
 [![Hugging Face Dataset](https://img.shields.io/badge/🤗%20Dataset-jingxiang11111%2Famazon_reviews_for_rec-blue)](https://huggingface.co/datasets/jingxiang11111/amazon_reviews_for_rec)
 [![Hugging Face Model](https://img.shields.io/badge/🤗%20Model-jingxiang11111%2Fmmoe--multimodal--rec-blue)](https://huggingface.co/jingxiang11111/mmoe-multimodal-rec)
-> 本项目是基于 Apache Beam 和 PyTorch DDP 构建的，从原始数据到模型训练的端到端多模态推荐系统。项目包括分布式特征工程、高效数据加载、复杂模型（MMoE）的分布式训练与微调。
+> 本项目是基于 Apache Beam 和 PyTorch DDP 构建的，从原始数据到模型训练的端到端多模态多任务系统。项目包括分布式特征工程、高效数据加载、复杂模型（MMoE）的分布式训练与微调。
 > 结果展示：<img width="1120" height="575" alt="cc8ddd5d25b25f8829b27353edf78c8" src="https://github.com/user-attachments/assets/b5b95593-963f-4dab-b489-0d7eb43de8db" />
 <img width="800" height="600" alt="image" src="https://github.com/user-attachments/assets/27a53ba8-bb8f-4ab0-bc7e-ded8149bf20f" /><img width="800" height="600" alt="image" src="https://github.com/user-attachments/assets/5ccd6ace-a197-403e-b007-ab170bf6e62a" />
 
@@ -24,6 +24,11 @@
 > * 在**22,281条**独立验证集样本上进行评估，取得了卓越的性能：
 >     * **AUC for 'good' task: 0.938**
 >     * **AUC for 'best' task: 0.926**
+> v2-HoME <img width="640" height="480" alt="3defdd8ce335da3ec87dbd6a811a5c4" src="https://github.com/user-attachments/assets/e785d744-4e6c-416b-9add-7ead8658b621" />
+
+> v3-HoME_Plus <img width="640" height="480" alt="198c981b63874e03b7204a63cc0a90c" src="https://github.com/user-attachments/assets/5b63a8fa-0c8a-4471-a757-b5cff8f7bbab" />
+
+
 > * 在`data4moe_beam.py`中，通过`SplitByDate`模块严格按照时间序（训练集 ≤ 2023.6.30 < 验证集 ≤ 2023.9.30）划分数据集，有效防止了数据穿越，确保了评估结果的公正性。
 
 ## 数据集和模型
@@ -194,8 +199,11 @@ graph TD
 ├── meta2gcs.py          # 从Hugging Face下载元数据的辅助脚本
 ├── review2gcs.py        # 从Hugging Face下载评论数据的辅助脚本
 ├── model.py             # 定义所有PyTorch模型架构 (MMoE, Experts)
+├── model_HoME.py        # 新的HoME架构
 ├── train.py             # 核心模型训练脚本 (PyTorch DDP)
+├── train_HoME.py        # HoME训练脚本  
 ├── inference_and_auc.py # 推理脚本，并计算auc
+├── infer_auc_HoME.py    # HoME推理脚本，并计算auc
 ├── requirements.txt     # 项目依赖
 └── README.md            # 本文档
 ```
@@ -246,7 +254,26 @@ torchrun --nproc_per_node=2 train.py \
   --lr 1e-5 \
   --output_dir /workspace/outputs
 ```
-
+```shell
+export TOKENIZERS_PARALLELISM=false && \
+torchrun --nproc_per_node=2 train_HoME.py \
+  --model_name BAAI/bge-base-en-v1.5 \
+  --img_model google/vit-base-patch16-224-in21k \
+  --data_pattern '/workspace/wds_shards/data-*-*.tar.gz' \
+  --output_dir /workspace/outputs \
+  --epochs 4 \
+  --batch_size 128 \
+  --grad_accum 8 \
+  --num_workers 16 \
+  --lora_r 8 \
+  --lr 1e-5 \
+  --weight_decay 1e-2 \
+  --max_norm 1.2 \
+  --lambda_cross 0.1 \
+  --lambda_user_img 0.1 \
+  --lambda_item_img 0.1 \
+  --temperature 0.07
+```
 ---
 
 ### 推理
@@ -261,6 +288,17 @@ python inference_and_auc.py \
   --batch_size 256 \
   --num_workers 8 \
   --lora_r 8
+```
+```shell
+
+python infer_auc_HoME.py \
+  --ckpt ./outputs/ckpt_HoME_CL_PRO_epoch3.pt \
+  --data_pattern '/workspace/valid/data-*-*.tar.gz' \
+  --batch_size 128 \
+  --bn_batch_size 128 \
+  --recalibrate_bn \
+  --output_dir /workspace/outputs \
+  --save_preds preds_PRO.csv
 ```
 
 ---
@@ -278,6 +316,10 @@ python inference_and_auc.py \
 <img width="640" height="480" alt="epoch_interval_loss_curve" src="https://github.com/user-attachments/assets/51c1126e-e913-439f-aec8-05979c3c9cc9" />
 
 - **注**：共4个epoch，图2中每个epoch重复计数了一次，已定位问题并在`train.py`中修改。
+- **UPDATE**：使用HoME架构引入对比学习辅助任务后，模型的loss曲线稳定下降，收敛更加平滑
+  <img width="1200" height="1800" alt="image" src="https://github.com/user-attachments/assets/8d1f6214-4b93-4b3e-9441-2192bfb68843" />
+<img width="1200" height="1800" alt="image" src="https://github.com/user-attachments/assets/0b993c87-dace-4c9a-8cb6-5f092f2df8dd" />
+
   
 ---
 
