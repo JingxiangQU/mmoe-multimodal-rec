@@ -21,12 +21,17 @@
 
 -**结果分析**
 > ### **结果分析**
-> * 在**22,281条**独立验证集样本上进行评估，取得了卓越的性能：
+> * 基线MMoE模型在**22,281条**独立验证集样本上进行评估，取得了卓越的性能：
 >     * **AUC for 'good' task: 0.938**
 >     * **AUC for 'best' task: 0.926**
-> v2-HoME <img width="640" height="480" alt="3defdd8ce335da3ec87dbd6a811a5c4" src="https://github.com/user-attachments/assets/e785d744-4e6c-416b-9add-7ead8658b621" />
 
-> v3-HoME_Plus <img width="640" height="480" alt="198c981b63874e03b7204a63cc0a90c" src="https://github.com/user-attachments/assets/5b63a8fa-0c8a-4471-a757-b5cff8f7bbab" />
+
+
+> * v2-HoME
+   <img width="640" height="480" alt="3defdd8ce335da3ec87dbd6a811a5c4" src="https://github.com/user-attachments/assets/e785d744-4e6c-416b-9add-7ead8658b621" />
+
+> * v3-HoME_Plus
+  <img width="640" height="480" alt="198c981b63874e03b7204a63cc0a90c" src="https://github.com/user-attachments/assets/5b63a8fa-0c8a-4471-a757-b5cff8f7bbab" />
 
 
 > * 在`data4moe_beam.py`中，通过`SplitByDate`模块严格按照时间序（训练集 ≤ 2023.6.30 < 验证集 ≤ 2023.9.30）划分数据集，有效防止了数据穿越，确保了评估结果的公正性。
