@@ -1,0 +1,260 @@
+import os
+import argparse
+import pandas as pd
+import glob
+import math
+import torch
+from torch.utils.data import DataLoader
+import numpy as np
+import webdataset as wds
+import matplotlib
+matplotlib.use('Agg') 
+import matplotlib.pyplot as plt
+from sklearn.metrics import roc_auc_score
+from transformers import AutoTokenizer
+from sklearn.metrics import roc_curve
+from model_HoME import (
+    preprocess_batch,
+    decode_sample,
+    build_text_user_expert,
+    build_text_item_expert,
+    build_img_expert,
+    build_cross_expert,
+    build_concat_ui_expert,
+    build_concat_ti_expert,
+    HOME_MMoE_Complete,
+)
+
+
+os.environ["TOKENIZERS_PARALLELISM"] = "false"  # 关闭并行，避免fork警告
+def make_eval_loader(file_list, batch_size: int, num_workers: int):
+    dataset = (
+        wds.WebDataset(file_list, shardshuffle=False)
+        .map(decode_sample)
+        .select(lambda x: x is not None)
+    )
+    loader = DataLoader(
+        dataset.batched(batch_size, collation_fn=lambda b: b),
+        batch_size=None,
+        num_workers=num_workers,
+        persistent_workers=(num_workers > 0),
+        pin_memory=True
+    )
+    print(f"[Loader] files={len(file_list)}  batch={batch_size}  workers={num_workers}")
+    return loader
+
+
+def load_checkpoint(ckpt_path, modules):
+    print(f"Loading checkpoint: {ckpt_path}")
+    ckpt = torch.load(ckpt_path, map_location="cpu")
+    for key, mod in modules.items():
+        if key not in ckpt:
+            print(f"[WARN] key '{key}' not in checkpoint.")
+            continue
+        msg = mod.load_state_dict(ckpt[key], strict=False)
+        print(f"  loaded '{key}' | missing: {msg.missing_keys} | unexpected: {msg.unexpected_keys}")
+    return ckpt
+
+def bn_modules_of(*mods):
+    for m in mods:
+        for mm in m.modules():
+            if isinstance(mm, torch.nn.modules.batchnorm._BatchNorm):
+                yield mm
+
+@torch.no_grad()
+def recalibrate_bn(runner, loader, max_batches):
+    """
+    用验证集在 GPU 上刷新 BN 的 running_mean/var：
+    - 仅让 BN 层处于 train()，其余模块 eval()
+    - 跑完整条前向：文本 → 图像 → 交互 → 拼接 → BN 包装
+    - 不更新权重，只更新 BN 统计
+    """
+    print(f"[BN] Recalibrating BatchNorm with {max_batches} batches on {runner['device']} ...")
+
+    # 1) 仅 BN train，其他 eval
+    for m in runner['all_mods']:
+        m.eval()
+    for mm in runner['all_mods']:
+        for bn in mm.modules():
+            if isinstance(bn, torch.nn.modules.batchnorm._BatchNorm):
+                bn.train()
+
+    device    = runner['device']
+    tokenizer = runner['tokenizer']
+
+    seen = 0
+    for batch in loader:
+        # ----- 准备数据（送 GPU）-----
+        texts_u = [b['user_text'] for b in batch]
+        texts_i = [b['item_text'] for b in batch]
+
+        patches = torch.stack([b['patch'] for b in batch]).to(device, non_blocking=True)
+
+        # 文本预处理
+        in_u, c2s_u, pos_u, max_s_u = preprocess_batch(texts_u, tokenizer, max_tok=384)
+        in_i, c2s_i, pos_i, max_s_i = preprocess_batch(texts_i, tokenizer, max_tok=384)
+
+        # ----- 前向到各专家 -----
+        # 文本专家：返回 sentence-level 与 doc-level
+        u_sent, u_mask, u_doc = runner['user'](in_u, c2s_u, pos_u, max_s_u)
+        i_sent, i_mask, i_doc = runner['item'](in_i, c2s_i, pos_i, max_s_i)
+
+        # 图像专家
+        img_vec, _ = runner['img'](patches)
+
+        # 文本交互专家
+        ui_vec = runner['cross'](u_sent, u_mask, i_sent, i_mask)
+
+        # 拼接专家
+        xui = runner['concat_ui'](u_doc, img_vec)
+        xti = runner['concat_ti'](i_doc, img_vec)
+
+        # ----- 经过训练时同款 BN 包装层 -----
+        _ = runner['u_doc_wrap'](u_doc)
+        _ = runner['i_doc_wrap'](i_doc)
+        _ = runner['img_wrap'](img_vec)
+        _ = runner['ui_wrap'](ui_vec)
+        _ = runner['xui_wrap'](xui)
+        _ = runner['xti_wrap'](xti)
+
+        seen += 1
+        print(f"S{seen}")
+        if seen >= max_batches:
+            break
+
+    print("[BN] Recalibration done.")
+
+@torch.no_grad()
+def run_eval(args):
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    tokenizer = AutoTokenizer.from_pretrained(args.model_name)
+    tokenizer.add_tokens(["<SENT>"])
+    user = build_text_user_expert(args.model_name, args.lora_r, 384, tokenizer, device).to(device)
+    item = build_text_item_expert(args.model_name, args.lora_r, 384, tokenizer, device).to(device)
+    img  = build_img_expert(args.img_model, device=device).to(device)
+    cross = build_cross_expert(device=device).to(device)
+    concat_ui = build_concat_ui_expert(device=device).to(device)
+    concat_ti = build_concat_ti_expert(device=device).to(device)
+    head = HOME_MMoE_Complete(expert_dim=768, n_shared_experts=4, n_task_experts=2, tower_hidden=512).to(device)
+    from train_HoME import HomeExpertWrapper as BNWrap
+    u_doc_wrap = BNWrap(d_model=768).to(device)
+    i_doc_wrap = BNWrap(d_model=768).to(device)
+    img_wrap   = BNWrap(d_model=768).to(device)
+    ui_wrap    = BNWrap(d_model=768).to(device)
+    xui_wrap   = BNWrap(d_model=768).to(device)
+    xti_wrap   = BNWrap(d_model=768).to(device)
+    modules = {
+        "user": user, "item": item, "img": img, "cross_ui": cross,
+        "concat_ui": concat_ui, "concat_ti": concat_ti, "head": head,
+        "u_doc_wrapper": u_doc_wrap, "i_doc_wrapper": i_doc_wrap,
+        "img_vec_wrapper": img_wrap, "ui_vec_wrapper": ui_wrap,
+        "xui_wrapper": xui_wrap, "xti_wrapper": xti_wrap
+    }
+    load_checkpoint(args.ckpt, modules)
+    for m in modules.values():
+        m.eval()
+    file_list = sorted(glob.glob(args.data_pattern))
+    if not file_list and not args.data_pattern.startswith("/"):
+        fixed = "/" + args.data_pattern
+        file_list = sorted(glob.glob(fixed))
+    
+    if not file_list:
+        raise FileNotFoundError(f"No files found matching: {args.data_pattern}")
+    
+    print(f"[Files] matched {len(file_list)} shards (e.g., {file_list[0] if file_list else 'N/A'})")
+    if args.recalibrate_bn:
+        total_samples = 22281  # known validation size
+        max_batches = math.ceil(total_samples / args.bn_batch_size)
+        recal_loader = make_eval_loader(file_list, args.bn_batch_size, args.num_workers)
+        runner = dict(
+            device=device, tokenizer=tokenizer, all_mods=[*modules.values()],
+            user=user, item=item, img=img, cross=cross,
+            concat_ui=concat_ui, concat_ti=concat_ti,
+            u_doc_wrap=u_doc_wrap, i_doc_wrap=i_doc_wrap,
+            img_wrap=img_wrap, ui_wrap=ui_wrap, xui_wrap=xui_wrap, xti_wrap=xti_wrap
+        )
+        recalibrate_bn(runner, recal_loader, max_batches)
+        for m in modules.values():
+            m.eval()
+    loader = make_eval_loader(file_list, args.batch_size, args.num_workers)
+    preds_g, labels_g, preds_b, labels_b = [], [], [], []
+    for batch in loader:
+        texts_u = [b['user_text'] for b in batch]
+        texts_i = [b['item_text'] for b in batch]
+        patches  = torch.stack([b['patch'] for b in batch]).to(device)
+        y_good   = torch.tensor([b['label_good'] for b in batch], dtype=torch.float32, device=device)
+        y_best   = torch.tensor([b['label_best'] for b in batch], dtype=torch.float32, device=device)
+        in_u, c2s_u, pos_u, max_s_u = preprocess_batch(texts_u, tokenizer, max_tok=384)
+        in_i, c2s_i, pos_i, max_s_i = preprocess_batch(texts_i, tokenizer, max_tok=384)
+        u_sent, u_mask, u_doc = user(in_u, c2s_u, pos_u, max_s_u)
+        i_sent, i_mask, i_doc = item(in_i, c2s_i, pos_i, max_s_i)
+        img_vec, _ = img(patches)
+        ui_vec  = cross(u_sent, u_mask, i_sent, i_mask)
+        xui     = concat_ui(u_doc, img_vec)
+        xti     = concat_ti(i_doc, img_vec)
+        u_doc_n = u_doc_wrap(u_doc)
+        i_doc_n = i_doc_wrap(i_doc)
+        img_n   = img_wrap(img_vec)
+        ui_n    = ui_wrap(ui_vec)
+        xui_n   = xui_wrap(xui)
+        xti_n   = xti_wrap(xti)
+        expert_vecs = torch.stack([u_doc_n, i_doc_n, img_n, ui_n, xui_n, xti_n], dim=1)
+        logit_g, logit_b = head(expert_vecs)
+        prob_g = torch.sigmoid(logit_g).detach().cpu().numpy()
+        prob_b = torch.sigmoid(logit_b).detach().cpu().numpy()
+        label_g = y_good.detach().cpu().numpy()
+        label_b = y_best.detach().cpu().numpy()
+        preds_g.append(prob_g); labels_g.append(label_g)
+        preds_b.append(prob_b); labels_b.append(label_b)
+    preds_g = np.concatenate(preds_g); labels_g = np.concatenate(labels_g)
+    preds_b = np.concatenate(preds_b); labels_b = np.concatenate(labels_b)
+    auc_g = roc_auc_score(labels_g, preds_g)
+    auc_b = roc_auc_score(labels_b, preds_b)
+    print(f"AUC(good) = {auc_g:.6f}")
+    print(f"AUC(best) = {auc_b:.6f}")
+    os.makedirs(args.output_dir, exist_ok=True)
+    
+    fpr_g, tpr_g, _ = roc_curve(labels_g, preds_g)
+    fpr_b, tpr_b, _ = roc_curve(labels_b, preds_b)
+
+    os.makedirs(args.output_dir, exist_ok=True)
+
+    # 合并一张图
+    plt.figure()
+    plt.plot(fpr_g, tpr_g, label=f"good (AUC={auc_g:.4f})")
+    plt.plot(fpr_b, tpr_b, label=f"best (AUC={auc_b:.4f})")
+    plt.plot([0,1], [0,1], linestyle="--")
+    plt.xlabel("False Positive Rate")
+    plt.ylabel("True Positive Rate")
+    plt.title("ROC Curves (HoME)")
+    plt.legend(loc="lower right")
+    plt.grid(True, alpha=0.3)
+    plt.savefig(os.path.join(args.output_dir, "roc_curve.png"), dpi=200)
+    plt.close()
+    if args.save_preds:
+        df = pd.DataFrame({
+            "prob_good": preds_g, "label_good": labels_g,
+            "prob_best": preds_b, "label_best": labels_b
+        })
+        save_path = os.path.join(args.output_dir, args.save_preds)
+        df.to_csv(save_path, index=False)
+        print(f"Saved predictions to: {save_path}")
+
+def main():
+    p = argparse.ArgumentParser()
+    p.add_argument("--ckpt", type=str, required=True)
+    p.add_argument("--data_pattern", type=str, required=True)
+    p.add_argument("--model_name", type=str, default="BAAI/bge-base-en-v1.5")
+    p.add_argument("--img_model", type=str, default="google/vit-base-patch16-224-in21k")
+    p.add_argument("--lora_r", type=int, default=8)
+    p.add_argument("--batch_size", type=int, default=512)
+    p.add_argument("--bn_batch_size", type=int, default=128)
+    p.add_argument("--num_workers", type=int, default=24)
+    p.add_argument("--recalibrate_bn", action='store_true')
+    p.add_argument("--output_dir", type=str, default="/workspace/outputs")
+    p.add_argument("--save_preds", type=str, default="preds.csv")
+    args = p.parse_args()
+    run_eval(args)
+
+if __name__ == "__main__":
+    main()
